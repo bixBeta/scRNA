@@ -2,6 +2,15 @@
 .Rhistory
 .RData
 .Ruserdata
+.Renviron
+.Rapp.history
+*_cache/
+/cache/
+.Rproj
+.rds
+
 
 all.batches.mecfs.200226.Rproj
-.Rproj
+metadata
+RDS
+
