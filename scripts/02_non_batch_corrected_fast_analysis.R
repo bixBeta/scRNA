@@ -6,7 +6,7 @@ plan("multiprocess", workers = 4)
 plan()
 ####################################################################################
 ####################################################################################
-all_pbmcs = readRDS("MEGA_MECFS_merged_seurat_object.rds")
+all_pbmcs = readRDS("RDS/MEGA_MECFS_merged_seurat_object.rds")
 
 # extract phenodata from all_pbmcs
 raw.pheno.data <- all_pbmcs@meta.data
@@ -42,14 +42,14 @@ rownames(pheno1) = pheno1$cell.barcode
 pheno1 = pheno1 %>% select(-1)
 
 str(pheno1)
-
+all_pbmcs <- AddMetaData(object = all_pbmcs, metadata = pheno1$orig.ident, col.name = "orig.ident")
 all_pbmcs <- AddMetaData(object = all_pbmcs, metadata = pheno1$batch, col.name = "batch")
 all_pbmcs <- AddMetaData(object = all_pbmcs, metadata = pheno1$ENID, col.name = "ENID")
 all_pbmcs <- AddMetaData(object = all_pbmcs, metadata = pheno1$Phenotype, col.name = "Phenotype")
 all_pbmcs <- AddMetaData(object = all_pbmcs, metadata = pheno1$CPET.Day, col.name = "CPET.Day")
 
 
-saveRDS(all_pbmcs, file = "MEGA_MECFS_CORRECTED_META_DATA_merged_seurat_object.rds")
+saveRDS(all_pbmcs, file = "RDS/MEGA_MECFS_CORRECTED_META_DATA_merged_seurat_object.rds")
 
 
 
@@ -64,25 +64,35 @@ all_pbmcs <- readRDS("RDS/MEGA_MECFS_CORRECTED_META_DATA_merged_seurat_object.rd
 # store mitochondrial percentage in object meta data
 all_pbmcs <- PercentageFeatureSet(all_pbmcs, pattern = "^MT-", col.name = "percent.mt")
 
+# apparently my method of just updating the metadata did not work :(  
+all_pbmcs <- RenameIdents(all_pbmcs, `2250` = "2350")
+
 # plot raw distributions
+png(filename = "plots/raw_distributions.png", width = 4200, height = 2200)
 VlnPlot(all_pbmcs, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0)
+dev.off()
+
+png(filename = "plots/featureScatter_Plots.png", width = 1920, height = 1080)
 plot1 <- FeatureScatter(all_pbmcs, feature1 = "nCount_RNA", feature2 = "percent.mt")
 plot2 <- FeatureScatter(all_pbmcs, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
 CombinePlots(plots = list(plot1, plot2))
+dev.off()
 
 ####################################################################################
 ####################################################################################
 # filter using distributions 
 s2.0 <- subset(all_pbmcs, subset = nFeature_RNA > 500 & nFeature_RNA < 5000 & percent.mt < 15)
+
+png(filename = "plots/filtered_featureScatter_Plots.png", width = 1920, height = 1080)
 plot3 <- FeatureScatter(s2.0, feature1 = "nCount_RNA", feature2 = "percent.mt")
 plot4 <- FeatureScatter(s2.0, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
 CombinePlots(plots = list(plot3, plot4))
-
+dev.off()
 
 #***********************************************************************************
 # save filtered object 
 # use this for all analysis
-saveRDS(s2.0, "s2.0.Filtered.SeuratObject.rds")
+saveRDS(s2.0, "RDS/s2.0.Filtered.SeuratObject.rds")
 
 
 ####################################################################################
@@ -112,7 +122,50 @@ ggplotly(metadata %>%
            ggtitle("NCells"))
 
 
+metadata$Phenoday <- as.factor(paste0(metadata$Phenotype, metadata$CPET.Day))
 
+
+png(filename = "plots/number_of_cells_per_phenoday.png", width = 800, height = 600)
+metadata %>% 
+           ggplot(aes(x=forcats::fct_infreq(Phenoday), fill=Phenoday)) + 
+           geom_bar() + scale_fill_manual(values=c(viridis(4))) +
+           theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+           theme(plot.title = element_text(hjust=0.5, face="bold")) +
+           ggtitle("NCells")
+dev.off()
+
+
+# Visualize the number UMIs/transcripts per cell
+png(filename = "plots/number_of_transcripts_per_cell.png", width = 1000, height = 800)
+metadata %>% 
+  ggplot(aes(color=orig.ident, x=nCount_RNA, fill= orig.ident)) + 
+  geom_density(alpha = 0.2) + 
+  scale_x_log10() + 
+  theme_classic() +
+  ylab("Cell density") +
+  geom_vline(xintercept = 500)
+dev.off()
+
+
+
+# Visualize the distribution of genes detected per cell/sample via histogram
+metadata %>% 
+  ggplot(aes(color=orig.ident, x=nFeature_RNA, fill= orig.ident)) + 
+  geom_density(alpha = 0.2) + 
+  theme_classic() +
+  scale_x_log10() + 
+  geom_vline(xintercept = 300)
+
+# Visualize the distribution of genes detected per cell/sample via boxplot
+png(filename = "plots/number_of_features_per_sample.png", width = 2600, height = 1200)
+metadata %>% 
+  ggplot(aes(x=orig.ident, y=log10(nFeature_RNA), fill=orig.ident)) + 
+  geom_boxplot() + 
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  theme(plot.title = element_text(hjust=0.5, face="bold")) +
+  ggtitle("NCells vs NGenes")
+dev.off()
 
 
 ####################################################################################
