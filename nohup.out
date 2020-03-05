@@ -1,0 +1,6 @@
+Calculating cell attributes for input UMI matrix
+Variance stabilizing transformation of count matrix of size 21807 by 348968
+Model formula is y ~ log_umi
+Get Negative Binomial regression parameters per gene
+Using 2000 genes, 348968 cells
+  |                                                                              |                                                                      |   0%
