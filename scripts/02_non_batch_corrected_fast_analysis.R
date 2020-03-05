@@ -83,6 +83,10 @@ dev.off()
 # filter using distributions 
 s2.0 <- subset(all_pbmcs, subset = nFeature_RNA > 500 & nFeature_RNA < 5000 & percent.mt < 15)
 
+png(filename = "plots/trimmed_raw_distributions.png", width = 4200, height = 2200)
+VlnPlot(s2.0, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0)
+dev.off()
+
 png(filename = "plots/filtered_featureScatter_Plots.png", width = 1920, height = 1080)
 plot3 <- FeatureScatter(s2.0, feature1 = "nCount_RNA", feature2 = "percent.mt")
 plot4 <- FeatureScatter(s2.0, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
@@ -93,7 +97,7 @@ dev.off()
 # save filtered object 
 # use this for all analysis
 saveRDS(s2.0, "RDS/s2.0.Filtered.SeuratObject.rds")
-
+#***********************************************************************************
 
 ####################################################################################
 ####################################################################################
@@ -167,20 +171,75 @@ metadata %>%
   ggtitle("NCells vs NGenes")
 dev.off()
 
+# Visualize the correlation between genes detected and number of UMIs and determine whether strong presence of cells with low numbers of genes/UMIs
+metadata %>% 
+  ggplot(aes(x=nCount_RNA, y=nFeature_RNA, color=mitoRatio)) + 
+  geom_point() + 
+  scale_colour_gradient(low = "gray90", high = "black") +
+  stat_smooth(method=lm) +
+  scale_x_log10() + 
+  scale_y_log10() + 
+  theme_classic() +
+  geom_vline(xintercept = 500) +
+  geom_hline(yintercept = 250) +
+  facet_wrap(~Phenoday)
 
+
+raw.counts.s2.0 <- GetAssayData(object = s2.0, slot = "counts")
+
+####################################################################################
+####################################################################################
+# normalization and cell cycle scoring
+library(RCurl)
+library(cowplot)
+
+seurat_phase <- NormalizeData(s2.0)
+
+# Load cell cycle markers
+load("RDS/cycle.rda")
+
+# Score cells for cell cycle
+seurat_phase <- CellCycleScoring(seurat_phase, 
+                                 g2m.features = g2m_genes, 
+                                 s.features = s_genes)
+
+# View cell cycle scores and phases assigned to cells                                 
+View(seurat_phase@meta.data)                                
+
+# Identify the most variable genes
+seurat_phase <- FindVariableFeatures(seurat_phase, 
+                                     selection.method = "vst",
+                                     nfeatures = 2000, 
+                                     verbose = FALSE)
+
+# Scale the counts
+seurat_phase <- ScaleData(seurat_phase)
+
+# Perform PCA
+seurat_phase <- RunPCA(seurat_phase)
+
+# Plot the PCA colored by cell cycle phase
+png(filename = "plots/cell_cycle_effect.png", width = 1920, height = 1080)
+DimPlot(seurat_phase,
+        reduction = "pca",
+        group.by= "Phase",
+        split.by = "Phase")
+dev.off()
 ####################################################################################
 ####################################################################################
 # fast analysis 
+options(future.globals.maxSize = 9000 * 1024^2)
+
 
 # run sctransform
-s2.0 <- SCTransform(s2.0, vars.to.regress = c("percent.mt", "ncount_RNA"), verbose = FALSE)
-
+s2.0 <- SCTransform(s2.0, vars.to.regress = c("percent.mt", "nCount_RNA"), verbose = T)
 # Perform dimensionality reduction by PCA and UMAP embedding
-
 # These are now standard steps in the Seurat workflow for visualization and clustering
 s2.0 <- RunPCA(s2.0, verbose = FALSE)
 s2.0 <- RunUMAP(s2.0, dims = 1:30, verbose = FALSE)
-
 s2.0 <- FindNeighbors(s2.0, dims = 1:30, verbose = FALSE)
 s2.0 <- FindClusters(s2.0, verbose = FALSE)
+png(filename = "plots/non_batch_corrected_clustering.png", width = 1920, height = 1080)
 DimPlot(s2.0, label = TRUE) + NoLegend()
+dev.off()
+
